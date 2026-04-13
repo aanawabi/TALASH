@@ -3,7 +3,7 @@ LLM Extractor Module
 Uses Google Gemini to extract structured information from CV text.
 """
 
-import google.generativeai as genai
+from google import genai
 import json
 import logging
 from typing import Optional, Dict, Any
@@ -25,16 +25,15 @@ class CVExtractor:
     Extracts structured CV information using Google Gemini LLM.
     """
 
-    def __init__(self, api_key: str, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: str, model_name: str = "gemini-3.1-flash-lite-preview"):
         """
         Initialize the extractor with Gemini API.
 
         Args:
             api_key: Google AI API key
-            model_name: Gemini model to use (default: gemini-1.5-flash)
+            model_name: Gemini model to use
         """
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
+        self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
 
     def _get_extraction_prompt(self, cv_text: str) -> str:
@@ -419,7 +418,10 @@ Return ONLY the JSON object, no additional text or markdown formatting.'''
         prompt = self._get_extraction_prompt(cv_text)
 
         try:
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt
+               )
             response_text = response.text
 
             logger.info("LLM response received, parsing JSON...")
