@@ -29,6 +29,19 @@ def run_api():
         reload=True
     )
 
+def run_ui():
+    """Start the Streamlit UI."""
+    import subprocess
+    import sys
+    import os
+
+    app_path = os.path.join("src", "ui", "app.py")
+    print(f"\nStarting TALASH UI...")
+    print(f"URL: http://localhost:8501")
+    print("\nPress Ctrl+C to stop\n")
+
+    subprocess.run([sys.executable, "-m", "streamlit", "run", app_path])
+
 
 def run_pipeline(input_folder: str, output_format: str = "excel"):
     """Run the CV processing pipeline."""
@@ -95,6 +108,10 @@ def process_single(pdf_path: str):
         exporter = CVExporter(output_dir=config.output_folder)
         json_path = exporter.export_single_cv_to_json(cv)
         print(f"\nExported to: {json_path}")
+
+        excel_path = exporter.export_single_cv_to_excel(cv)  # ADD THIS
+        print(f"Exported to: {excel_path}")  # ADD THIS
+
     else:
         print("Failed to process CV")
 
@@ -107,6 +124,8 @@ def main():
 
     # API command
     api_parser = subparsers.add_parser("api", help="Start the API server")
+    # UI command
+    ui_parser = subparsers.add_parser("ui", help="Start the Streamlit UI")
 
     # Pipeline command
     pipeline_parser = subparsers.add_parser("process", help="Process CVs from folder")
@@ -134,12 +153,15 @@ def main():
         run_pipeline(args.input, args.format)
     elif args.command == "single":
         process_single(args.file)
+    elif args.command == "ui":
+        run_ui()
     else:
         parser.print_help()
         print("\nExamples:")
         print("  python run.py api                    # Start API server")
         print("  python run.py process -i ./cvs       # Process folder")
         print("  python run.py single resume.pdf      # Process single file")
+        print("  python run.py ui                     # Start Streamlit UI")
 
 
 if __name__ == "__main__":
