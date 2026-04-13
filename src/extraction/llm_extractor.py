@@ -25,7 +25,7 @@ class CVExtractor:
     Extracts structured CV information using Google Gemini LLM.
     """
 
-    def __init__(self, api_key: str, model_name: str = "gemini-3.1-flash-lite-preview"):
+    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash-lite"):
         """
         Initialize the extractor with Gemini API.
 
@@ -269,9 +269,9 @@ Return ONLY the JSON object, no additional text or markdown formatting.'''
         for edu in data.get("education", []):
             education.append(EducationRecord(
                 degree_level=self._map_degree_level(edu.get("degree_level", "Other")),
-                degree_title=edu.get("degree_title", ""),
+                degree_title=edu.get("degree_title") or "",
                 specialization=edu.get("specialization"),
-                institution=edu.get("institution", ""),
+                institution=edu.get("institution") or "",
                 board=edu.get("board"),
                 country=edu.get("country"),
                 start_year=edu.get("start_year"),
