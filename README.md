@@ -9,7 +9,6 @@ An AI-powered recruitment support system built using Large Language Models (LLMs
 - PDF CV parsing and text extraction
 - LLM-based structured information extraction using Google Gemini
 - Relational database-like output format (CSV/Excel)
-- Interactive web UI for recruiters (Streamlit)
 - REST API for programmatic access
 - Batch processing of multiple CVs
 
@@ -22,19 +21,17 @@ Talash/
 │   ├── extraction/       # LLM extraction logic
 │   ├── models/           # Pydantic data models
 │   ├── preprocessing/    # PDF parsing & text cleaning
-│   ├── ui/               # Streamlit web interface
-│   │   └── app.py        # Main UI application
 │   ├── utils/            # Config, export utilities
 │   └── pipeline.py       # Main processing pipeline
 ├── data/
 │   ├── input_cvs/        # Place CVs here for processing
-│   └── output/           # Extracted data appears here (JSON + CSV)
+│   └── output/           # Extracted data appears here
 ├── docs/
 │   └── ARCHITECTURE.md   # System architecture
 ├── tests/                # Unit tests
 ├── requirements.txt      # Python dependencies
-├── run.py                # Main entry point
-├── .env.example          # Environment template
+├── run.py               # Main entry point
+├── .env.example         # Environment template
 └── README.md
 ```
 
@@ -71,21 +68,13 @@ copy .env.example .env
 
 ### 3. Usage
 
-#### Launch the Web UI
-
-```bash
-python run.py ui
-
-# UI will be available at http://localhost:8501
-```
-
-#### Process a Single CV (CLI)
+#### Process a Single CV
 
 ```bash
 python run.py single path/to/cv.pdf
 ```
 
-#### Process Multiple CVs (CLI)
+#### Process Multiple CVs
 
 ```bash
 # Place CVs in data/input_cvs/ folder
@@ -100,28 +89,6 @@ python run.py api
 # API will be available at http://localhost:8000
 # Swagger docs at http://localhost:8000/docs
 ```
-
-## Web Interface
-
-TALASH includes a dark-themed recruiter dashboard built with Streamlit. Launch it with `python run.py ui`.
-
-### Screens
-
-| Screen | Description |
-|--------|-------------|
-| **Dashboard** | Overview of all uploaded CVs with processing stats and status summary |
-| **Upload CVs** | Drag-and-drop PDF upload with real-time extraction progress |
-| **Candidates** | Searchable and filterable table of all candidates with missing-info flags |
-| **Candidate Profile** | Tabbed view of extracted data — Personal, Education, Experience, Skills, Publications |
-| **Extraction Logs** | Timestamped log of every extraction event, filterable by level and file |
-
-### How It Works
-
-1. Upload one or more CV PDFs via the Upload CVs screen
-2. The UI saves them to `data/input_cvs/` and runs the extraction pipeline automatically
-3. Extracted data is stored as JSON in `data/output/` and loaded into the UI
-4. Any previously extracted JSONs are auto-loaded when the app starts
-5. Missing fields are flagged inline — the system can draft a follow-up email to the candidate automatically
 
 ## API Endpoints
 
@@ -156,7 +123,6 @@ All tables are linked via `candidate_id` foreign key.
 ## Technology Stack
 
 - **Python 3.10+**
-- **Streamlit** - Recruiter web interface
 - **FastAPI** - REST API framework
 - **Google Gemini** - LLM for extraction
 - **PyMuPDF** - PDF processing
@@ -168,21 +134,16 @@ All tables are linked via `candidate_id` foreign key.
 - [x] Pre-Processing Module (PDF parsing, text extraction)
 - [x] System Architecture Design
 - [x] LLM/NLP Pipeline Design
-- [x] Database/Storage Design (relational CSV schema linked by candidate_id)
-- [x] Web UI with 5 screens (Dashboard, Upload, Candidates, Profile, Logs)
-- [x] Early Prototype with upload/read flow
+- [x] Database/Storage Design
+- [x] Early Prototype with basic upload/read flow
 - [x] Folder-based CV ingestion
-- [x] Preliminary extraction from sample CVs
-
 ![img.png](img.png)
-
 ## Team
 
 Affan Basra
 Amna Akhtar Nawabi
 Fatima Ehsan Niazi
-(SEECS, NUST)
-
+(SEECS)
 ## License
 
 Academic Project - NUST SEECS
