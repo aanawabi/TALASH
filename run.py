@@ -44,15 +44,28 @@ def run_ui():
 
 
 def run_pipeline(input_folder: str, output_format: str = "excel"):
-    """Run the CV processing pipeline."""
-    from src.pipeline import run_pipeline as execute_pipeline
+    """Run the full CV processing pipeline with analysis, charts, and email drafts."""
+    from src.utils.config import Config
+    from src.pipeline import CVProcessingPipeline
+    from pathlib import Path
+
+    config = Config()
+    if input_folder:
+        config.input_folder = input_folder
+
+    charts_dir = str(Path(config.output_folder).parent / "charts")
+    emails_dir = str(Path(config.output_folder).parent / "emails")
+
+    pipeline = CVProcessingPipeline(config)
 
     print(f"\nProcessing CVs from: {input_folder}")
     print(f"Output format: {output_format}\n")
 
-    results = execute_pipeline(
-        input_folder=input_folder,
-        export_format=output_format
+    results = pipeline.process_folder_with_analysis(
+        folder_path=input_folder,
+        export_format=output_format,
+        emails_dir=emails_dir,
+        charts_dir=charts_dir,
     )
 
     print("\n" + "=" * 60)
@@ -70,10 +83,26 @@ def run_pipeline(input_folder: str, output_format: str = "excel"):
         for name in results['candidates']:
             print(f"  - {name}")
 
+    for entry in results.get("results", []):
+        name = entry["cv"].personal_info.full_name
+        mis = entry.get("missing_info", {})
+        emails = entry.get("email_files", {})
+        charts = entry.get("chart_paths", {})
+        print(f"\n  [{name}]")
+        print(f"    Missing fields : {mis.get('total_missing_fields', 0)}")
+        if emails:
+            print(f"    Email drafts   : {len(emails)} file(s) -> {list(emails.values())[0]}")
+        if charts:
+            print(f"    Charts         : {len(charts)} generated")
+
     if results.get('output_files'):
         print(f"\nOutput Files:")
         for key, value in results['output_files'].items():
-            if isinstance(value, list):
+            if isinstance(value, dict):
+                print(f"  {key}:")
+                for k2, v2 in value.items():
+                    print(f"    {k2}: {v2}")
+            elif isinstance(value, list):
                 print(f"  {key}:")
                 for v in value:
                     print(f"    - {v}")
