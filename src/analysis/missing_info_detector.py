@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from ..models.cv_models import ExtractedCV
 
@@ -295,3 +296,38 @@ Return only the email text, no additional commentary."""
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(model=model_name, contents=prompt)
         return response.text
+
+    def write_emails_to_files(
+        self,
+        missing_info: Dict[str, Any],
+        name: str,
+        emails_dir: str = "data/emails",
+        position: str = "the advertised position",
+        institution: str = "our institution",
+        sender_name: str = "HR Committee",
+        sender_title: str = "Recruitment Office",
+    ) -> Dict[str, str]:
+        """
+        Write filled email templates as .txt files to data/emails/{CandidateName}/.
+        Returns a dict mapping template type to file path.
+        """
+        templates = self.get_email_template(
+            missing_info,
+            name=name,
+            position=position,
+            institution=institution,
+            sender_name=sender_name,
+            sender_title=sender_title,
+        )
+
+        safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
+        candidate_dir = Path(emails_dir) / safe_name
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+
+        written: Dict[str, str] = {}
+        for template_type, content in templates.items():
+            file_path = candidate_dir / f"{template_type}_email.txt"
+            file_path.write_text(content, encoding="utf-8")
+            written[template_type] = str(file_path)
+
+        return written
