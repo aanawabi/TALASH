@@ -113,8 +113,9 @@ data/input_cvs/*.PDF
 data/output/*.xlsx
 data/output/*.csv
 data/output/*.json
-data/charts/*.png
-data/charts/*.jpg
+data/charts/**/*.png
+data/charts/**/*.jpg
+data/emails/**/*.txt
 !data/input_cvs/.gitkeep
 !data/output/.gitkeep
 !data/charts/.gitkeep

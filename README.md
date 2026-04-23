@@ -40,7 +40,13 @@ TALASH/
 ├── data/
 │   ├── input_cvs/        # Place CVs here for processing
 │   ├── output/           # Extracted data (Excel, CSV, JSON)
-│   └── charts/           # Generated charts
+│   │   ├── talash_all_candidates.xlsx   # Raw extraction (relational sheets)
+│   │   └── talash_analysis.xlsx         # Analysis results sheets
+│   ├── charts/           # Generated charts
+│   │   ├── {CandidateName}/             # Per-candidate charts subfolder
+│   │   └── aggregate/                   # Aggregate charts subfolder
+│   └── emails/           # Auto-generated email drafts
+│       └── {CandidateName}/             # Per-candidate email .txt files
 ├── tests/                # Unit tests
 ├── requirements.txt      # Python dependencies
 ├── run.py                # Main entry point
@@ -159,10 +165,12 @@ All tables are linked via `candidate_id` foreign key.
 - [x] Professional experience analysis
 - [x] Research profile analysis (basic + higher-level metrics)
 - [x] Missing information detection
-- [x] Personalised email draft generation
-- [x] Candidate summary (stats + narrative)
-- [x] Per-candidate charts (education timeline, experience timeline, skills, publications, radar, overview)
-- [x] Aggregate charts (education distribution, experience histogram, top skills, research impact comparison, publications comparison, quartile distribution)
+- [x] Personalised email draft generation (template-filled .txt files per candidate)
+- [x] Candidate summary (stats + LLM narrative in single mode)
+- [x] Per-candidate charts in subfolders (education timeline, experience timeline, skills, publications, radar, overview)
+- [x] Aggregate charts in aggregate/ subfolder (education distribution, experience histogram, top skills, research impact comparison, publications comparison, quartile distribution)
+- [x] Analysis Excel export (analysis_summary, education_analysis, experience_analysis, research_analysis, missing_info, draft_emails sheets)
+- [x] Full batch pipeline: extraction → analysis → emails → per-candidate charts → aggregate charts → export
 ## Team
 
 Affan Basra
