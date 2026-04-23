@@ -24,8 +24,17 @@ class ChartGenerator:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def _save(self, fig: plt.Figure, filename: str) -> str:
-        path = self.output_dir / filename
+    def _candidate_dir(self, name: str) -> Path:
+        d = self.output_dir / _safe_name(name)
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _aggregate_dir(self) -> Path:
+        d = self.output_dir / "aggregate"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _save(self, fig: plt.Figure, path: Path) -> str:
         fig.savefig(path, dpi=_FIG_DPI, bbox_inches="tight")
         plt.close(fig)
         return str(path)
@@ -58,7 +67,7 @@ class ChartGenerator:
         ax.set_xlabel("Year")
         ax.set_title(f"Education Timeline — {cv.personal_info.full_name}", fontweight="bold")
         fig.tight_layout()
-        return self._save(fig, f"{_safe_name(cv.personal_info.full_name)}_education_timeline.png")
+        return self._save(fig, self._candidate_dir(cv.personal_info.full_name) / "education_timeline.png")
 
     def experience_timeline(self, cv: ExtractedCV, exp_analysis: Dict[str, Any]) -> str:
         """Horizontal Gantt chart of work history."""
@@ -97,7 +106,7 @@ class ChartGenerator:
         ax.set_xlabel("Year")
         ax.set_title(f"Experience Timeline — {cv.personal_info.full_name}", fontweight="bold")
         fig.tight_layout()
-        return self._save(fig, f"{_safe_name(cv.personal_info.full_name)}_experience_timeline.png")
+        return self._save(fig, self._candidate_dir(cv.personal_info.full_name) / "experience_timeline.png")
 
     def skills_chart(self, cv: ExtractedCV) -> str:
         """Horizontal bar chart of skills grouped by category."""
@@ -116,7 +125,7 @@ class ChartGenerator:
         ax.set_title(f"Skills by Category — {cv.personal_info.full_name}", fontweight="bold")
         ax.set_xlim(0, max(counts) * 1.2)
         fig.tight_layout()
-        return self._save(fig, f"{_safe_name(cv.personal_info.full_name)}_skills.png")
+        return self._save(fig, self._candidate_dir(cv.personal_info.full_name) / "skills.png")
 
     def publications_by_year(self, cv: ExtractedCV, research_analysis: Dict[str, Any]) -> str:
         """Bar chart of publications per year."""
@@ -136,7 +145,7 @@ class ChartGenerator:
         ax.set_xticks(years)
         ax.set_xticklabels(years, rotation=45)
         fig.tight_layout()
-        return self._save(fig, f"{_safe_name(cv.personal_info.full_name)}_publications_by_year.png")
+        return self._save(fig, self._candidate_dir(cv.personal_info.full_name) / "publications_by_year.png")
 
     def research_summary_radar(self, cv: ExtractedCV, research_analysis: Dict[str, Any]) -> str:
         """Radar chart showing key research dimensions."""
@@ -165,7 +174,7 @@ class ChartGenerator:
         ax.set_title(f"Research Profile — {cv.personal_info.full_name}",
                      fontweight="bold", pad=20)
         fig.tight_layout()
-        return self._save(fig, f"{_safe_name(cv.personal_info.full_name)}_research_radar.png")
+        return self._save(fig, self._candidate_dir(cv.personal_info.full_name) / "research_radar.png")
 
     def candidate_overview(
         self,
@@ -241,7 +250,7 @@ class ChartGenerator:
             ax.set_title("Skills by Category", fontweight="bold")
 
         fig.tight_layout()
-        return self._save(fig, f"{_safe_name(cv.personal_info.full_name)}_overview.png")
+        return self._save(fig, self._candidate_dir(cv.personal_info.full_name) / "overview.png")
 
     # ══════════════════════════════════════════════════════════════════════════
     # AGGREGATE CHARTS (multiple candidates)
@@ -257,13 +266,15 @@ class ChartGenerator:
         values = list(counts.values())
 
         fig, ax = plt.subplots(figsize=(max(6, len(labels)), 5))
-        bars = ax.bar(labels, values, color=sns.color_palette("Blues_d", len(labels)))
+        x = range(len(labels))
+        bars = ax.bar(x, values, color=sns.color_palette("Blues_d", len(labels)))
         ax.bar_label(bars, padding=3)
         ax.set_ylabel("Number of Candidates")
         ax.set_title("Highest Degree Distribution", fontweight="bold")
+        ax.set_xticks(list(x))
         ax.set_xticklabels(labels, rotation=30, ha="right")
         fig.tight_layout()
-        return self._save(fig, "aggregate_education_distribution.png")
+        return self._save(fig, self._aggregate_dir() / "education_distribution.png")
 
     def experience_distribution(
         self, cvs: List[ExtractedCV], exp_analyses: List[Dict[str, Any]]
@@ -280,7 +291,7 @@ class ChartGenerator:
         ax.set_ylabel("Number of Candidates")
         ax.set_title("Experience Distribution Across Candidates", fontweight="bold")
         fig.tight_layout()
-        return self._save(fig, "aggregate_experience_distribution.png")
+        return self._save(fig, self._aggregate_dir() / "experience_distribution.png")
 
     def top_skills_frequency(
         self, cvs: List[ExtractedCV], top_n: int = 20
@@ -302,7 +313,7 @@ class ChartGenerator:
         ax.set_xlabel("Frequency")
         ax.set_title(f"Top {top_n} Skills Across All Candidates", fontweight="bold")
         fig.tight_layout()
-        return self._save(fig, "aggregate_top_skills.png")
+        return self._save(fig, self._aggregate_dir() / "top_skills.png")
 
     def research_impact_comparison(
         self,
@@ -321,7 +332,7 @@ class ChartGenerator:
         ax.set_xlabel("Research Impact Score")
         ax.set_title("Research Impact Score Comparison", fontweight="bold")
         fig.tight_layout()
-        return self._save(fig, "aggregate_research_impact.png")
+        return self._save(fig, self._aggregate_dir() / "research_impact.png")
 
     def publications_comparison(
         self,
@@ -343,7 +354,7 @@ class ChartGenerator:
         ax.set_title("Publications per Candidate (Journal vs Conference)", fontweight="bold")
         ax.legend()
         fig.tight_layout()
-        return self._save(fig, "aggregate_publications_comparison.png")
+        return self._save(fig, self._aggregate_dir() / "publications_comparison.png")
 
     def quartile_distribution_aggregate(
         self,
@@ -371,7 +382,7 @@ class ChartGenerator:
         ax.set_title("Quartile Distribution per Candidate", fontweight="bold")
         ax.legend(title="Quartile")
         fig.tight_layout()
-        return self._save(fig, "aggregate_quartile_distribution.png")
+        return self._save(fig, self._aggregate_dir() / "quartile_distribution.png")
 
     # ── Convenience: generate all charts for one candidate ────────────────────
 
