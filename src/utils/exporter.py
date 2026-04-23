@@ -216,89 +216,194 @@ class CVExporter:
                 })
         return pd.DataFrame(records)
 
-    def export_to_excel(self, cvs: List[ExtractedCV], filename: str = None) -> str:
+    def _get_stable_candidate_id(self, cv: ExtractedCV) -> str:
+        """Stable ID from source filename — same CV always gets same ID, no uuid."""
+        import hashlib
+        stable_hash = hashlib.md5((cv.source_file or "unknown").encode()).hexdigest()[:8]
+        safe_name = (cv.personal_info.full_name or "unknown").replace(" ", "_")[:20]
+        return f"{safe_name}_{stable_hash}"
+
+    def export_to_excel(self, cvs: List[ExtractedCV], filename: str = "talash_all_candidates.xlsx") -> str:
         """
-        Export multiple CVs to a single Excel file with multiple sheets.
+        Export CVs to a single master Excel file (one sheet per table).
+        If the file already exists, new candidates are APPENDED and existing
+        ones are UPDATED (no duplicates). Safe to call after every CV processed.
 
         Args:
-            cvs: List of extracted CVs
-            filename: Output filename (optional)
+            cvs: List of extracted CVs to write
+            filename: Stable output filename (not timestamped)
 
         Returns:
-            Path to the created file
+            Path to the created/updated file
         """
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"cv_extraction_{timestamp}.xlsx"
-
         filepath = self.output_dir / filename
 
-        # Generate candidate IDs
-        ids = [self._generate_candidate_id(cv) for cv in cvs]
+        # Stable IDs — re-processing same CV won't create duplicate rows
+        ids = [self._get_stable_candidate_id(cv) for cv in cvs]
 
-        # Prepare all dataframes
-        dfs = {
-            "candidates": self._prepare_personal_info_df(cvs, ids),
-            "education": self._prepare_education_df(cvs, ids),
-            "experience": self._prepare_experience_df(cvs, ids),
-            "skills": self._prepare_skills_df(cvs, ids),
-            "journal_publications": self._prepare_journal_publications_df(cvs, ids),
+        new_dfs = {
+            "candidates":              self._prepare_personal_info_df(cvs, ids),
+            "education":               self._prepare_education_df(cvs, ids),
+            "experience":              self._prepare_experience_df(cvs, ids),
+            "skills":                  self._prepare_skills_df(cvs, ids),
+            "journal_publications":    self._prepare_journal_publications_df(cvs, ids),
             "conference_publications": self._prepare_conference_publications_df(cvs, ids),
-            "supervisions": self._prepare_supervisions_df(cvs, ids),
-            "patents": self._prepare_patents_df(cvs, ids),
-            "books": self._prepare_books_df(cvs, ids)
+            "supervisions":            self._prepare_supervisions_df(cvs, ids),
+            "patents":                 self._prepare_patents_df(cvs, ids),
+            "books":                   self._prepare_books_df(cvs, ids),
         }
 
-        # Write to Excel
-        with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
-            for sheet_name, df in dfs.items():
+        # If file exists, load and merge — drop stale rows for candidates being rewritten
+        if filepath.exists():
+            try:
+                existing = pd.read_excel(filepath, sheet_name=None, dtype=str)
+            except Exception as e:
+                logger.warning(f"Could not read existing Excel ({e}), starting fresh")
+                existing = {}
+            combined = {}
+            for sheet, new_df in new_dfs.items():
+                old_df = existing.get(sheet, pd.DataFrame())
+                if not old_df.empty and "candidate_id" in old_df.columns and not new_df.empty:
+                    old_df = old_df[~old_df["candidate_id"].isin(ids)]
+                combined[sheet] = pd.concat([old_df, new_df], ignore_index=True)
+        else:
+            combined = new_dfs
+
+        with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+            for sheet_name, df in combined.items():
                 if not df.empty:
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-        logger.info(f"Exported {len(cvs)} CVs to {filepath}")
+        logger.info(f"Excel updated → {filepath}  ({len(cvs)} candidate(s) added/updated)")
         return str(filepath)
 
-    def export_to_csv(self, cvs: List[ExtractedCV], prefix: str = None) -> Dict[str, str]:
+    def export_to_csv(self, cvs: List[ExtractedCV]) -> Dict[str, str]:
         """
-        Export multiple CVs to separate CSV files for each entity.
+        Export CVs to a set of STABLE master CSV files (one per table).
+        Files are named talash_candidates.csv, talash_education.csv, etc.
+
+        If a file already exists, new candidates are APPENDED and existing
+        ones are UPDATED (no duplicates). Safe to call after every CV processed.
 
         Args:
-            cvs: List of extracted CVs
-            prefix: Prefix for filenames (optional)
+            cvs: List of extracted CVs to write
 
         Returns:
-            Dictionary mapping entity names to file paths
+            Dictionary mapping table name to file path
         """
-        if not prefix:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            prefix = f"cv_extraction_{timestamp}"
+        # Stable IDs — re-processing same CV won't create duplicate rows
+        ids = [self._get_stable_candidate_id(cv) for cv in cvs]
 
-        # Generate candidate IDs
-        ids = [self._generate_candidate_id(cv) for cv in cvs]
-
-        # Prepare all dataframes
-        dfs = {
-            "candidates": self._prepare_personal_info_df(cvs, ids),
-            "education": self._prepare_education_df(cvs, ids),
-            "experience": self._prepare_experience_df(cvs, ids),
-            "skills": self._prepare_skills_df(cvs, ids),
-            "journal_publications": self._prepare_journal_publications_df(cvs, ids),
+        new_dfs = {
+            "candidates":              self._prepare_personal_info_df(cvs, ids),
+            "education":               self._prepare_education_df(cvs, ids),
+            "experience":              self._prepare_experience_df(cvs, ids),
+            "skills":                  self._prepare_skills_df(cvs, ids),
+            "journal_publications":    self._prepare_journal_publications_df(cvs, ids),
             "conference_publications": self._prepare_conference_publications_df(cvs, ids),
-            "supervisions": self._prepare_supervisions_df(cvs, ids),
-            "patents": self._prepare_patents_df(cvs, ids),
-            "books": self._prepare_books_df(cvs, ids)
+            "supervisions":            self._prepare_supervisions_df(cvs, ids),
+            "patents":                 self._prepare_patents_df(cvs, ids),
+            "books":                   self._prepare_books_df(cvs, ids),
         }
 
-        # Write CSV files
         output_files = {}
-        for entity_name, df in dfs.items():
-            if not df.empty:
-                filepath = self.output_dir / f"{prefix}_{entity_name}.csv"
-                df.to_csv(filepath, index=False)
-                output_files[entity_name] = str(filepath)
-                logger.info(f"Exported {entity_name} to {filepath}")
+        for table_name, new_df in new_dfs.items():
+            filepath = self.output_dir / f"talash_{table_name}.csv"
+
+            if filepath.exists():
+                try:
+                    old_df = pd.read_csv(filepath, dtype=str)
+                    # Remove stale rows for candidates being rewritten
+                    if "candidate_id" in old_df.columns and not new_df.empty:
+                        old_df = old_df[~old_df["candidate_id"].isin(ids)]
+                    combined_df = pd.concat([old_df, new_df], ignore_index=True)
+                except Exception as e:
+                    logger.warning(f"Could not read {filepath.name} ({e}), overwriting")
+                    combined_df = new_df
+            else:
+                combined_df = new_df
+
+            if not combined_df.empty:
+                combined_df.to_csv(filepath, index=False)
+                output_files[table_name] = str(filepath)
+                logger.info(f"CSV updated → {filepath.name}  "
+                            f"({len(new_df)} new rows, {len(combined_df)} total)")
 
         return output_files
+
+    def export_single_cv_to_excel(self, cv: ExtractedCV, filename: str = "talash_candidates.xlsx") -> str:
+        """
+        Export or APPEND a single CV to the master Excel file.
+
+        If the Excel already exists, reads all existing sheets and appends
+        the new candidate's rows, then rewrites the file.  This way, calling
+        this after every individual /process API call builds up one growing
+        Excel with all candidates — no separate "batch export" step needed.
+
+        If the file does not exist yet, it is created fresh.
+
+        Args:
+            cv: The single ExtractedCV to add
+            filename: Master Excel filename (default: talash_candidates.xlsx)
+
+        Returns:
+            Path to the Excel file
+        """
+        import hashlib
+        filepath = self.output_dir / filename
+
+        # Stable candidate_id derived from filename — NOT a random uuid.
+        # This means re-processing the same PDF won't duplicate rows.
+        stable_hash = hashlib.md5((cv.source_file or "unknown").encode()).hexdigest()[:8]
+        safe_name   = (cv.personal_info.full_name or "unknown").replace(" ", "_")[:15]
+        candidate_id = f"{safe_name}_{stable_hash}"
+
+        # Build DataFrames for this single candidate
+        new_data = {
+            "candidates":              self._prepare_personal_info_df([cv], [candidate_id]),
+            "education":               self._prepare_education_df([cv], [candidate_id]),
+            "experience":              self._prepare_experience_df([cv], [candidate_id]),
+            "skills":                  self._prepare_skills_df([cv], [candidate_id]),
+            "journal_publications":    self._prepare_journal_publications_df([cv], [candidate_id]),
+            "conference_publications": self._prepare_conference_publications_df([cv], [candidate_id]),
+            "supervisions":            self._prepare_supervisions_df([cv], [candidate_id]),
+            "patents":                 self._prepare_patents_df([cv], [candidate_id]),
+            "books":                   self._prepare_books_df([cv], [candidate_id]),
+        }
+
+        # If the file already exists, load existing data and merge
+        if filepath.exists():
+            try:
+                existing_sheets = pd.read_excel(filepath, sheet_name=None, dtype=str)
+            except Exception as e:
+                logger.warning(f"Could not read existing Excel ({e}), creating fresh file")
+                existing_sheets = {}
+
+            combined = {}
+            for sheet_name, new_df in new_data.items():
+                old_df = existing_sheets.get(sheet_name, pd.DataFrame())
+
+                # Avoid duplicating the same candidate (match on candidate_id)
+                if not old_df.empty and "candidate_id" in old_df.columns and not new_df.empty:
+                    old_df = old_df[old_df["candidate_id"] != candidate_id]
+
+                if not new_df.empty:
+                    combined[sheet_name] = pd.concat(
+                        [old_df, new_df], ignore_index=True
+                    )
+                else:
+                    combined[sheet_name] = old_df
+        else:
+            combined = new_data
+
+        # Write the merged data back to Excel
+        with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+            for sheet_name, df in combined.items():
+                if not df.empty:
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+        logger.info(f"Appended '{cv.personal_info.full_name}' → {filepath}  (id: {candidate_id})")
+        return str(filepath)
 
     def export_single_cv_to_json(self, cv: ExtractedCV, filename: str = None) -> str:
         """

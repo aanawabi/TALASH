@@ -1,2 +1,1 @@
-from .exporter import CVExporter
-from .config import Config
+# TALASH - Talent Acquisition & Learning Automation for Smart Hiring

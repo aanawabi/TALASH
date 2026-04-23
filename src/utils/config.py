@@ -28,7 +28,7 @@ class Config:
         self.gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
 
         # Model Settings
-        self.gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+        self.gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 
         # Paths
         self.input_folder: str = os.getenv("INPUT_FOLDER", "data/input_cvs")
