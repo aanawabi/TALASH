@@ -1,0 +1,23 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="polars" />
+          <option value="pytz" />
+          <option value="requests" />
+          <option value="psycopg2-binary" />
+          <option value="pre_commit" />
+          <option value="xgboost" />
+          <option value="scipy" />
+          <option value="numpy" />
+          <option value="psutil" />
+          <option value="boto3" />
+          <option value="core-pip-package" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

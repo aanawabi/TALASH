@@ -405,6 +405,146 @@ class CVExporter:
         logger.info(f"Appended '{cv.personal_info.full_name}' → {filepath}  (id: {candidate_id})")
         return str(filepath)
 
+    def export_analysis_to_excel(
+        self,
+        results: List[Dict[str, Any]],
+        filename: str = "talash_analysis.xlsx",
+    ) -> str:
+        """
+        Export per-candidate analysis results to a dedicated analysis Excel file.
+        Sheets: analysis_summary, education_analysis, experience_analysis,
+                research_analysis, missing_info, draft_emails.
+
+        Args:
+            results: List of dicts, each containing keys:
+                     'cv', 'edu_analysis', 'exp_analysis', 'res_analysis',
+                     'missing_info', 'email_files' (optional)
+            filename: Output filename
+
+        Returns:
+            Path to the created file
+        """
+        filepath = self.output_dir / filename
+
+        summary_rows = []
+        edu_rows = []
+        exp_rows = []
+        res_rows = []
+        missing_rows = []
+        email_rows = []
+
+        for r in results:
+            cv = r["cv"]
+            name = cv.personal_info.full_name
+            edu = r.get("edu_analysis", {})
+            exp = r.get("exp_analysis", {})
+            res = r.get("res_analysis", {})
+            mis = r.get("missing_info", {})
+            emails = r.get("email_files", {})
+
+            summary_rows.append({
+                "candidate_name": name,
+                "highest_degree": edu.get("highest_degree"),
+                "highest_degree_institution": edu.get("highest_degree_institution"),
+                "has_phd": edu.get("has_phd"),
+                "has_foreign_education": edu.get("has_foreign_education"),
+                "total_years_experience": exp.get("total_years_experience"),
+                "current_position": exp.get("current_position"),
+                "career_trajectory": exp.get("career_trajectory"),
+                "total_publications": res.get("total_publications"),
+                "research_impact_score": res.get("research_impact_score"),
+                "profile_tier": res.get("profile_tier"),
+                "has_missing_info": mis.get("has_missing_info"),
+                "has_critical_missing": mis.get("has_critical_missing"),
+                "total_missing_fields": mis.get("total_missing_fields"),
+            })
+
+            edu_rows.append({
+                "candidate_name": name,
+                "highest_degree": edu.get("highest_degree"),
+                "highest_degree_institution": edu.get("highest_degree_institution"),
+                "highest_degree_year": edu.get("highest_degree_year"),
+                "has_phd": edu.get("has_phd"),
+                "has_foreign_education": edu.get("has_foreign_education"),
+                "foreign_institutions": ", ".join(edu.get("foreign_institutions") or []),
+                "average_percentage": edu.get("average_percentage"),
+                "degree_progression": " → ".join(edu.get("degree_progression") or []),
+                "gaps_detected": "; ".join(edu.get("gaps_detected") or []),
+            })
+
+            exp_rows.append({
+                "candidate_name": name,
+                "total_years_experience": exp.get("total_years_experience"),
+                "number_of_positions": exp.get("number_of_positions"),
+                "is_currently_employed": exp.get("is_currently_employed"),
+                "current_position": exp.get("current_position"),
+                "current_organization": exp.get("current_organization"),
+                "career_trajectory": exp.get("career_trajectory"),
+                "average_tenure_years": exp.get("average_tenure_years"),
+                "longest_role": exp.get("longest_role"),
+            })
+
+            q = res.get("quartile_distribution", {})
+            res_rows.append({
+                "candidate_name": name,
+                "profile_tier": res.get("profile_tier"),
+                "total_publications": res.get("total_publications"),
+                "total_journal_publications": res.get("total_journal_publications"),
+                "total_conference_publications": res.get("total_conference_publications"),
+                "Q1": q.get("Q1", 0),
+                "Q2": q.get("Q2", 0),
+                "Q3": q.get("Q3", 0),
+                "Q4": q.get("Q4", 0),
+                "Unranked": q.get("Unranked", 0),
+                "wos_indexed_count": res.get("wos_indexed_count"),
+                "scopus_indexed_count": res.get("scopus_indexed_count"),
+                "average_impact_factor": res.get("average_impact_factor"),
+                "research_impact_score": res.get("research_impact_score"),
+                "publication_trend": res.get("publication_trend"),
+                "high_impact_ratio": res.get("high_impact_ratio"),
+                "ms_supervised": res.get("ms_supervised"),
+                "phd_supervised": res.get("phd_supervised"),
+                "total_patents": res.get("total_patents"),
+                "granted_patents": res.get("granted_patents"),
+            })
+
+            if mis.get("has_missing_info"):
+                by_cat = mis.get("missing_by_category", {})
+                for item in mis.get("all_missing", []):
+                    missing_rows.append({
+                        "candidate_name": name,
+                        "missing_item": item,
+                        "total_missing_fields": mis.get("total_missing_fields"),
+                        "has_critical_missing": mis.get("has_critical_missing"),
+                    })
+
+            for template_type, file_path in emails.items():
+                email_rows.append({
+                    "candidate_name": name,
+                    "template_type": template_type,
+                    "file_path": file_path,
+                })
+
+        sheets = {
+            "analysis_summary": pd.DataFrame(summary_rows),
+            "education_analysis": pd.DataFrame(edu_rows),
+            "experience_analysis": pd.DataFrame(exp_rows),
+            "research_analysis": pd.DataFrame(res_rows),
+            "missing_info": pd.DataFrame(missing_rows) if missing_rows else pd.DataFrame(
+                columns=["candidate_name", "missing_item", "total_missing_fields", "has_critical_missing"]
+            ),
+            "draft_emails": pd.DataFrame(email_rows) if email_rows else pd.DataFrame(
+                columns=["candidate_name", "template_type", "file_path"]
+            ),
+        }
+
+        with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+            for sheet_name, df in sheets.items():
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+        logger.info(f"Analysis Excel written → {filepath}")
+        return str(filepath)
+
     def export_single_cv_to_json(self, cv: ExtractedCV, filename: str = None) -> str:
         """
         Export a single CV to JSON format.
