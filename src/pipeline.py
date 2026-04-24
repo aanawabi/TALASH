@@ -105,7 +105,8 @@ class CVProcessingPipeline:
             logger.error(f"Folder not found: {folder}")
             return []
 
-        pdf_files = list(folder.glob("*.pdf")) + list(folder.glob("*.PDF"))
+        pdf_files = list({f.resolve() for f in folder.glob("*.pdf")} |
+                        {f.resolve() for f in folder.glob("*.PDF")})
         logger.info(f"Found {len(pdf_files)} PDF files")
 
         extracted_cvs = []
@@ -175,6 +176,100 @@ class CVProcessingPipeline:
             "duration_seconds": duration,
             "output_files": output_files,
             "candidates": [cv.personal_info.full_name for cv in extracted_cvs]
+        }
+
+
+    def process_folder_with_analysis(
+        self,
+        folder_path: Optional[str] = None,
+        export_format: str = "excel",
+        emails_dir: str = "data/emails",
+        charts_dir: str = "data/charts",
+    ) -> Dict[str, Any]:
+        """
+        Process all CVs in a folder with full analysis, chart generation,
+        email draft writing, and Excel export.
+
+        Returns a results dict with per-candidate data and output file paths.
+        """
+        from .analysis.educational_analyzer import EducationalAnalyzer
+        from .analysis.experience_analyzer import ExperienceAnalyzer
+        from .analysis.research_profile_analyzer import ResearchProfileAnalyzer
+        from .analysis.missing_info_detector import MissingInfoDetector
+        from .visualization.chart_generator import ChartGenerator
+
+        start_time = datetime.now()
+        extracted_cvs = self.process_folder(folder_path)
+
+        if not extracted_cvs:
+            return {
+                "success": False,
+                "message": "No CVs were successfully processed",
+                "processed_count": 0,
+                "output_files": {},
+                "results": [],
+            }
+
+        edu_analyzer = EducationalAnalyzer()
+        exp_analyzer = ExperienceAnalyzer()
+        res_analyzer = ResearchProfileAnalyzer()
+        detector = MissingInfoDetector()
+        chart_gen = ChartGenerator(output_dir=charts_dir)
+
+        all_results = []
+        edu_analyses, exp_analyses, res_analyses = [], [], []
+
+        for cv in extracted_cvs:
+            edu = edu_analyzer.analyze(cv)
+            exp = exp_analyzer.analyze(cv)
+            res = res_analyzer.analyze(cv)
+            mis = detector.detect(cv)
+
+            email_files = detector.write_emails_to_files(
+                mis, name=cv.personal_info.full_name, emails_dir=emails_dir
+            )
+
+            chart_paths = chart_gen.generate_all_candidate_charts(cv, edu, exp, res)
+
+            all_results.append({
+                "cv": cv,
+                "edu_analysis": edu,
+                "exp_analysis": exp,
+                "res_analysis": res,
+                "missing_info": mis,
+                "email_files": email_files,
+                "chart_paths": chart_paths,
+            })
+            edu_analyses.append(edu)
+            exp_analyses.append(exp)
+            res_analyses.append(res)
+
+        aggregate_charts = chart_gen.generate_all_aggregate_charts(
+            extracted_cvs, edu_analyses, exp_analyses, res_analyses
+        )
+
+        output_files: Dict[str, Any] = {}
+        if export_format in ("excel", "both"):
+            output_files["excel"] = self.exporter.export_to_excel(extracted_cvs)
+        if export_format in ("csv", "both"):
+            output_files["csv"] = self.exporter.export_to_csv(extracted_cvs)
+
+        analysis_excel = self.exporter.export_analysis_to_excel(all_results)
+        output_files["analysis_excel"] = analysis_excel
+
+        if aggregate_charts:
+            output_files["aggregate_charts"] = aggregate_charts
+
+        duration = (datetime.now() - start_time).total_seconds()
+
+        return {
+            "success": True,
+            "message": f"Successfully processed {len(extracted_cvs)} CVs",
+            "processed_count": len(extracted_cvs),
+            "duration_seconds": duration,
+            "candidates": [cv.personal_info.full_name for cv in extracted_cvs],
+            "output_files": output_files,
+            "results": all_results,
         }
 
 
