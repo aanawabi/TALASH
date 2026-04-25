@@ -25,6 +25,11 @@ from src.utils.exporter import CVExporter
 from src.utils.config import Config
 from src.models.cv_models import ExtractedCV
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+import json, os
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -34,6 +39,18 @@ app = FastAPI(
     description="AI-powered CV screening and candidate analysis using LLMs",
     version="1.0.0"
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+CHARTS_DIR = Path("data/charts")
+CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/charts", StaticFiles(directory=str(CHARTS_DIR)), name="charts")
+
 
 # Add CORS middleware
 app.add_middleware(
@@ -297,6 +314,135 @@ async def download_output(filename: str):
         media_type="application/octet-stream"
     )
 
+@app.get("/candidates")
+async def list_candidates():
+    output_dir = Path("data/output")
+    candidates = []
+    for json_file in sorted(output_dir.glob("*.json"), key=os.path.getmtime, reverse=True):
+        try:
+            with open(json_file, encoding="utf-8") as f:
+                data = json.load(f)
+            pi = data.get("personal_info", {})
+            candidates.append({
+                "candidate_id":            json_file.stem,
+                "full_name":               pi.get("full_name"),
+                "email":                   pi.get("email"),
+                "phone":                   pi.get("phone"),
+                "linkedin":                pi.get("linkedin"),
+                "website":                 pi.get("website"),
+                "source_file":             data.get("source_file"),
+                "extraction_timestamp":    data.get("extraction_timestamp"),
+                "education":               data.get("education", []),
+                "experience":              data.get("experience", []),
+                "skills":                  data.get("skills", []),
+                "journal_publications":    data.get("journal_publications", []),
+                "conference_publications": data.get("conference_publications", []),
+                "supervisions":            data.get("supervisions", []),
+                "patents":                 data.get("patents", []),
+                "books":                   data.get("books", []),
+            })
+        except Exception:
+            pass
+    return candidates
+
+
+@app.get("/candidates/{candidate_id}")
+async def get_candidate(candidate_id: str):
+    from fastapi import HTTPException
+    json_file = Path("data/output") / f"{candidate_id}.json"
+    if not json_file.exists():
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    with open(json_file, encoding="utf-8") as f:
+        data = json.load(f)
+    pi = data.get("personal_info", {})
+    return {
+        "candidate_id": json_file.stem,
+        "full_name":    pi.get("full_name"),
+        "email":        pi.get("email"),
+        "phone":        pi.get("phone"),
+        **data,
+    }
+
+
+@app.post("/process/{filename}")
+async def process_file(filename: str):
+    from fastapi import HTTPException
+    import subprocess, sys
+    pdf_path = Path("data/input_cvs") / filename
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="File not found in input folder")
+
+    result = subprocess.run(
+        [sys.executable, "run.py", "single", str(pdf_path)],
+        capture_output=True, text=True
+    )
+
+    output_dir = Path("data/output")
+    json_files = sorted(output_dir.glob("*.json"), key=os.path.getmtime, reverse=True)
+    candidate = None
+    if json_files:
+        with open(json_files[0], encoding="utf-8") as f:
+            raw = json.load(f)
+        pi = raw.get("personal_info", {})
+        candidate = {
+            "candidate_id": json_files[0].stem,
+            "full_name":    pi.get("full_name"),
+            "email":        pi.get("email"),
+            **raw,
+        }
+
+    return {
+        "success":   result.returncode == 0,
+        "candidate": candidate,
+        "stdout":    result.stdout[-500:] if result.stdout else "",
+        "stderr":    result.stderr[-200:] if result.stderr else "",
+    }
+
+
+@app.post("/upload-and-process")
+async def upload_and_process(file: UploadFile = File(...)):
+    import subprocess, sys
+
+    # Save to input folder
+    input_dir = Path("data/input_cvs")
+    input_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = input_dir / file.filename
+
+    with open(pdf_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    # Run pipeline — force UTF-8 encoding on Windows
+    result = subprocess.run(
+        [sys.executable, "run.py", "single", str(pdf_path)],
+        capture_output=True,
+        encoding='utf-8',  # ← force UTF-8
+        errors='replace',  # ← replace unencodable chars instead of crashing
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"}  # ← tell subprocess to use UTF-8
+    )
+
+    # Find newest JSON output
+    output_dir = Path("data/output")
+    json_files = sorted(output_dir.glob("*.json"), key=os.path.getmtime, reverse=True)
+    candidate = None
+    if json_files:
+        with open(json_files[0], encoding="utf-8") as f:
+            raw = json.load(f)
+        pi = raw.get("personal_info", {})
+        candidate = {
+            "candidate_id": json_files[0].stem,
+            "full_name": pi.get("full_name"),
+            "email": pi.get("email"),
+            "phone": pi.get("phone"),
+            **raw,
+        }
+
+    return {
+        "success": result.returncode == 0,
+        "candidate": candidate,
+        "stdout": result.stdout[-500:] if result.stdout else "",
+        "stderr": result.stderr[-200:] if result.stderr else "",
+    }
 
 if __name__ == "__main__":
     import uvicorn
