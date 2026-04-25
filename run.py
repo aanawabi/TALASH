@@ -246,6 +246,12 @@ def process_single(pdf_path: str):
     print(f"  JSON:   {json_path}")
     print(f"  Excel:  {excel_path}")
 
+def run_react():
+    import subprocess, sys, os
+    ui_path = os.path.join("src", "ui", "react")
+    print("\nStarting TALASH React UI...")
+    print("URL: http://localhost:3000\n")
+    subprocess.run(["npm", "start"], cwd=ui_path, shell=True)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -257,6 +263,8 @@ def main():
     api_parser = subparsers.add_parser("api", help="Start the API server")
     # UI command
     ui_parser = subparsers.add_parser("ui", help="Start the Streamlit UI")
+    #react command
+    react_parser = subparsers.add_parser("react", help="Start the React UI")
 
     # Pipeline command
     pipeline_parser = subparsers.add_parser("process", help="Process CVs from folder")
@@ -286,6 +294,8 @@ def main():
         process_single(args.file)
     elif args.command == "ui":
         run_ui()
+    elif args.command == "react":
+        run_react()
     else:
         parser.print_help()
         print("\nExamples:")
