@@ -155,7 +155,7 @@ class ChartGenerator:
             research_analysis["total_publications"],
             q["Q1"] + q["Q2"],
             research_analysis["indexed_conference_count"],
-            research_analysis["total_supervisions"],
+            research_analysis.get("supervision", {}).get("total_supervised", 0),
             research_analysis["total_patents"] + research_analysis["total_books"],
         ]
         # Normalize each dimension to 0-10
