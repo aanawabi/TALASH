@@ -25,7 +25,7 @@ class CVExtractor:
     Extracts structured CV information using Google Gemini LLM.
     """
 
-    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash-lite"):
+    def __init__(self, api_key: str, model_name: str = "gemini-3.1-flash-lite-preview"):
         """
         Initialize the extractor with Gemini API.
 
