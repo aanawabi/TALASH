@@ -149,7 +149,7 @@ class SupervisionRecord(BaseModel):
 class PatentRecord(BaseModel):
     """Patent record"""
     candidate_id: Optional[str] = Field(None, description="Reference to candidate")
-    patent_number: str = Field(..., description="Patent number")
+    patent_number: Optional[str] = Field(None, description="Patent number (may be absent for pending/submitted patents)")
     patent_title: str = Field(..., description="Patent title")
     inventors: List[str] = Field(..., description="List of inventors")
     filing_date: Optional[str] = Field(None, description="Filing date")
