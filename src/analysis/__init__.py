@@ -3,3 +3,8 @@ from .experience_analyzer import ExperienceAnalyzer
 from .research_profile_analyzer import ResearchProfileAnalyzer
 from .missing_info_detector import MissingInfoDetector
 from .candidate_summarizer import CandidateSummarizer
+from .topic_variability_analyzer import TopicVariabilityAnalyzer
+from .coauthor_analyzer import CoAuthorAnalyzer
+from .skill_alignment_analyzer import SkillAlignmentAnalyzer
+from .candidate_ranker import CandidateRanker
+from .publication_verifier import verify_journal, verify_conference
