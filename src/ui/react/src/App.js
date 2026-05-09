@@ -13,6 +13,7 @@ import ResearchPage     from './pages/Research';
 import SkillsPage       from './pages/Skills';
 import MissingInfoPage  from './pages/MissingInfo';
 import SummaryPage      from './pages/Summary';
+import RankingPage      from './pages/Ranking';
 import ChartsPage       from './pages/Charts';
 import LogsPage         from './pages/Logs';
 
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/skills"             element={<SkillsPage />} />
               <Route path="/missing"            element={<MissingInfoPage />} />
               <Route path="/summary"            element={<SummaryPage />} />
+              <Route path="/ranking"            element={<RankingPage />} />
               <Route path="/charts"             element={<ChartsPage />} />
               <Route path="/logs"               element={<LogsPage />} />
             </Routes>
