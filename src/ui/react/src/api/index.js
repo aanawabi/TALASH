@@ -52,6 +52,40 @@ export async function getLogs() {
   return r.json();
 }
 
+export async function analyzeCandidate(candidateId, includeSummary = false) {
+  const r = await fetch(`${BASE}/candidates/${candidateId}/analyze?include_summary=${includeSummary}`);
+  if (!r.ok) throw new Error('Analysis failed');
+  return r.json();
+}
+
+export async function analyzeSkillsWithJD(candidateId, jobDescription) {
+  const r = await fetch(`${BASE}/candidates/${candidateId}/skill-alignment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_description: jobDescription }),
+  });
+  if (!r.ok) throw new Error('JD alignment failed');
+  return r.json();
+}
+
+export async function getCandidateCharts(candidateId) {
+  const r = await fetch(`${BASE}/candidates/${candidateId}/charts`);
+  if (!r.ok) throw new Error('Failed to fetch chart list');
+  return r.json();
+}
+
+export async function rankCandidates() {
+  const r = await fetch(`${BASE}/candidates/rank`);
+  if (!r.ok) throw new Error('Ranking failed');
+  return r.json();
+}
+
+export async function getCandidateEmails(candidateId) {
+  const r = await fetch(`${BASE}/candidates/${candidateId}/emails`);
+  if (!r.ok) throw new Error('Failed to fetch emails');
+  return r.json();
+}
+
 export async function healthCheck() {
   const r = await fetch(`${BASE}/`);
   return r.ok;

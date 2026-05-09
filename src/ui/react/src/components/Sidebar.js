@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Upload, Users, GraduationCap, Briefcase,
-  BookOpen, AlertCircle, FileText, BarChart3, ScrollText, FlaskConical
+  BookOpen, AlertCircle, FileText, BarChart3, ScrollText, FlaskConical, Trophy,
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 
@@ -29,6 +29,7 @@ const sections = [
     items: [
       { to: '/missing',  icon: AlertCircle, label: 'Missing Info' },
       { to: '/summary',  icon: FileText,    label: 'Summary' },
+      { to: '/ranking',  icon: Trophy,      label: 'Ranking' },
       { to: '/charts',   icon: BarChart3,   label: 'Charts' },
       { to: '/logs',     icon: ScrollText,  label: 'Logs' },
     ]
