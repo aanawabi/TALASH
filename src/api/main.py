@@ -42,7 +42,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -50,16 +51,6 @@ app.add_middleware(
 CHARTS_DIR = Path("data/charts")
 CHARTS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/charts", StaticFiles(directory=str(CHARTS_DIR)), name="charts")
-
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Global instances
 config = Config()
@@ -575,55 +566,24 @@ async def get_candidate_emails(candidate_id: str):
         from src.analysis.missing_info_detector import MissingInfoDetector
 
         cv = ExtractedCV.model_validate(data)
-        missing_info = MissingInfoDetector().detect(cv)
+        detector = MissingInfoDetector()
+        missing_info = detector.detect(cv)
+        draft_emails = detector.get_email_template(
+            missing_info,
+            name=cv.personal_info.full_name,
+        ) if missing_info.get("has_missing_info") else {}
 
-        emails = missing_info.get("draft_emails", {})
         return {
-            "candidate_id":    candidate_id,
-            "has_missing_info": missing_info.get("has_missing_info", False),
+            "candidate_id":         candidate_id,
+            "has_missing_info":     missing_info.get("has_missing_info", False),
             "total_missing_fields": missing_info.get("total_missing_fields", 0),
-            "draft_emails":    emails,
-            "all_missing":     missing_info.get("all_missing", []),
+            "draft_emails":         draft_emails,
+            "all_missing":          missing_info.get("all_missing", []),
         }
 
     except Exception as e:
         logger.error(f"Email generation failed for {candidate_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/process/{filename}")
-async def process_file(filename: str):
-    from fastapi import HTTPException
-    import subprocess, sys
-    pdf_path = Path("data/input_cvs") / filename
-    if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="File not found in input folder")
-
-    result = subprocess.run(
-        [sys.executable, "run.py", "single", str(pdf_path)],
-        capture_output=True, text=True
-    )
-
-    output_dir = Path("data/output")
-    json_files = sorted(output_dir.glob("*.json"), key=os.path.getmtime, reverse=True)
-    candidate = None
-    if json_files:
-        with open(json_files[0], encoding="utf-8") as f:
-            raw = json.load(f)
-        pi = raw.get("personal_info", {})
-        candidate = {
-            "candidate_id": json_files[0].stem,
-            "full_name":    pi.get("full_name"),
-            "email":        pi.get("email"),
-            **raw,
-        }
-
-    return {
-        "success":   result.returncode == 0,
-        "candidate": candidate,
-        "stdout":    result.stdout[-500:] if result.stdout else "",
-        "stderr":    result.stderr[-200:] if result.stderr else "",
-    }
 
 
 @app.post("/upload-and-process")

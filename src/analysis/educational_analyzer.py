@@ -213,6 +213,21 @@ class EducationalAnalyzer:
         )
         progression_labels = [DEGREE_LABELS.get(e.degree_level, "Other") for e in progression]
 
+        # Normalize CGPA/grade values that the LLM left as None
+        from ..models.cv_models import GradeType
+        for e in records:
+            if e.normalized_percentage is None and e.grade_value is not None:
+                try:
+                    val = float(e.grade_value)
+                    if e.grade_type == GradeType.CGPA_4:
+                        e.normalized_percentage = round(val / 4.0 * 100, 1)
+                    elif e.grade_type == GradeType.CGPA_5:
+                        e.normalized_percentage = round(val / 5.0 * 100, 1)
+                    elif e.grade_type == GradeType.PERCENTAGE:
+                        e.normalized_percentage = round(val, 1)
+                except (ValueError, TypeError):
+                    pass
+
         # Normalized grade stats
         grades = [e.normalized_percentage for e in records if e.normalized_percentage is not None]
 
