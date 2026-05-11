@@ -42,7 +42,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -50,16 +51,6 @@ app.add_middleware(
 CHARTS_DIR = Path("data/charts")
 CHARTS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/charts", StaticFiles(directory=str(CHARTS_DIR)), name="charts")
-
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Global instances
 config = Config()
@@ -346,6 +337,95 @@ async def list_candidates():
     return candidates
 
 
+def _safe_chart_name(name: str) -> str:
+    """Mirror of ChartGenerator._safe_name — used to locate the chart folder."""
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
+
+
+@app.get("/candidates/{candidate_id}/charts")
+async def get_candidate_charts(candidate_id: str):
+    """
+    Return the list of chart PNG files available for a candidate.
+    Scans data/charts/ with a case-insensitive folder match so naming
+    variants (UPPERCASE, Mixed_Case) are all handled.
+    """
+    json_file = Path("data/output") / f"{candidate_id}.json"
+    if not json_file.exists():
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    with open(json_file, encoding="utf-8") as f:
+        data = json.load(f)
+
+    full_name = data.get("personal_info", {}).get("full_name", candidate_id)
+    safe_name = _safe_chart_name(full_name)
+
+    charts_dir = Path("data/charts")
+    candidate_dir = None
+
+    if charts_dir.exists():
+        # Case-insensitive folder search
+        for d in charts_dir.iterdir():
+            if d.is_dir() and d.name.lower() == safe_name.lower():
+                candidate_dir = d
+                break
+
+    if not candidate_dir:
+        return {"candidate_id": candidate_id, "folder": None, "charts": []}
+
+    charts = [
+        {
+            "file":  f.name,
+            "url":   f"/charts/{candidate_dir.name}/{f.name}",
+            "label": f.stem.replace("_", " ").title(),
+        }
+        for f in sorted(candidate_dir.glob("*.png"))
+    ]
+
+    return {"candidate_id": candidate_id, "folder": candidate_dir.name, "charts": charts}
+
+
+@app.get("/candidates/rank")
+async def rank_all_candidates():
+    """
+    Rank every processed candidate by running all analyzers and combining scores.
+    Returns a ranked list with aggregate stats and dimension leaders.
+    """
+    output_dir = Path("data/output")
+    json_files = list(output_dir.glob("*.json")) if output_dir.exists() else []
+    if not json_files:
+        return {"ranked_candidates": [], "total_candidates": 0, "aggregate": {}, "weights_used": {}}
+
+    from src.models.cv_models import ExtractedCV
+    from src.analysis.educational_analyzer import EducationalAnalyzer
+    from src.analysis.experience_analyzer import ExperienceAnalyzer
+    from src.analysis.research_profile_analyzer import ResearchProfileAnalyzer
+    from src.analysis.skill_alignment_analyzer import SkillAlignmentAnalyzer
+    from src.analysis.candidate_ranker import CandidateRanker
+
+    candidates_data = []
+    for json_file in json_files:
+        try:
+            with open(json_file, encoding="utf-8") as f:
+                data = json.load(f)
+            cv = ExtractedCV.model_validate(data)
+            candidates_data.append({
+                "name":          cv.personal_info.full_name,
+                "candidate_id":  json_file.stem,
+                "edu_analysis":  EducationalAnalyzer().analyze(cv),
+                "res_analysis":  ResearchProfileAnalyzer().analyze(cv),
+                "exp_analysis":  ExperienceAnalyzer().analyze(cv),
+                "skill_analysis": SkillAlignmentAnalyzer().analyze(cv),
+                "total_skills":  len(cv.skills),
+            })
+        except Exception as e:
+            logger.warning(f"Skipping {json_file.stem} during ranking: {e}")
+
+    if not candidates_data:
+        return {"ranked_candidates": [], "total_candidates": 0, "aggregate": {}, "weights_used": {}}
+
+    return CandidateRanker().rank_candidates(candidates_data)
+
+
 @app.get("/candidates/{candidate_id}")
 async def get_candidate(candidate_id: str):
     from fastapi import HTTPException
@@ -364,39 +444,146 @@ async def get_candidate(candidate_id: str):
     }
 
 
-@app.post("/process/{filename}")
-async def process_file(filename: str):
-    from fastapi import HTTPException
-    import subprocess, sys
-    pdf_path = Path("data/input_cvs") / filename
-    if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="File not found in input folder")
+@app.get("/candidates/{candidate_id}/analyze")
+async def analyze_candidate(candidate_id: str, include_summary: bool = False):
+    """
+    Run all analysis modules on an already-extracted candidate and return results.
+    Pass ?include_summary=true to also generate the LLM narrative (slower).
+    """
+    json_file = Path("data/output") / f"{candidate_id}.json"
+    if not json_file.exists():
+        raise HTTPException(status_code=404, detail="Candidate not found")
 
-    result = subprocess.run(
-        [sys.executable, "run.py", "single", str(pdf_path)],
-        capture_output=True, text=True
-    )
+    with open(json_file, encoding="utf-8") as f:
+        data = json.load(f)
 
-    output_dir = Path("data/output")
-    json_files = sorted(output_dir.glob("*.json"), key=os.path.getmtime, reverse=True)
-    candidate = None
-    if json_files:
-        with open(json_files[0], encoding="utf-8") as f:
-            raw = json.load(f)
-        pi = raw.get("personal_info", {})
-        candidate = {
-            "candidate_id": json_files[0].stem,
-            "full_name":    pi.get("full_name"),
-            "email":        pi.get("email"),
-            **raw,
+    try:
+        from src.models.cv_models import ExtractedCV
+        from src.analysis.educational_analyzer import EducationalAnalyzer
+        from src.analysis.experience_analyzer import ExperienceAnalyzer
+        from src.analysis.research_profile_analyzer import ResearchProfileAnalyzer
+        from src.analysis.missing_info_detector import MissingInfoDetector
+        from src.analysis.topic_variability_analyzer import TopicVariabilityAnalyzer
+        from src.analysis.coauthor_analyzer import CoAuthorAnalyzer
+        from src.analysis.skill_alignment_analyzer import SkillAlignmentAnalyzer
+        from src.analysis.candidate_ranker import CandidateRanker
+        from src.analysis.candidate_summarizer import CandidateSummarizer
+
+        cv = ExtractedCV.model_validate(data)
+
+        edu_analysis    = EducationalAnalyzer().analyze(cv)
+        exp_analysis    = ExperienceAnalyzer().analyze(cv)
+        res_analysis    = ResearchProfileAnalyzer().analyze(cv)
+        missing_info    = MissingInfoDetector().detect(cv)
+        topic_analysis  = TopicVariabilityAnalyzer().analyze(cv)
+        coauthor_analysis = CoAuthorAnalyzer().analyze(cv)
+        skill_analysis  = SkillAlignmentAnalyzer().analyze(cv)
+        rank_result     = CandidateRanker().score_candidate(
+            candidate_name = cv.personal_info.full_name,
+            candidate_id   = candidate_id,
+            edu_analysis   = edu_analysis,
+            res_analysis   = res_analysis,
+            exp_analysis   = exp_analysis,
+            skill_analysis = skill_analysis,
+            total_skills   = len(cv.skills),
+        )
+
+        result = {
+            "candidate_id":     candidate_id,
+            "edu_analysis":     edu_analysis,
+            "exp_analysis":     exp_analysis,
+            "res_analysis":     res_analysis,
+            "missing_info":     missing_info,
+            "topic_analysis":   topic_analysis,
+            "coauthor_analysis": coauthor_analysis,
+            "skill_analysis":   skill_analysis,
+            "rank_result":      rank_result,
         }
 
-    return {
-        "success":   result.returncode == 0,
-        "candidate": candidate,
-        "stdout":    result.stdout[-500:] if result.stdout else "",
-        "stderr":    result.stderr[-200:] if result.stderr else "",
-    }
+        if include_summary and config.gemini_api_key:
+            try:
+                summarizer = CandidateSummarizer(
+                    api_key=config.gemini_api_key,
+                    model_name=config.gemini_model,
+                )
+                result["summary"] = summarizer.summarize(
+                    cv, edu_analysis, exp_analysis, res_analysis, missing_info
+                )
+            except Exception as e:
+                result["summary"] = {"stats": {}, "narrative": f"Summary generation failed: {e}"}
+        else:
+            result["summary"] = None
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Analysis failed for {candidate_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class JDAlignmentRequest(BaseModel):
+    job_description: str
+
+
+@app.post("/candidates/{candidate_id}/skill-alignment")
+async def skill_alignment_with_jd(candidate_id: str, body: JDAlignmentRequest):
+    """
+    Run skill alignment against a provided job description.
+    Returns the full skill_analysis result including JD-specific fields:
+    alignment_score, jd_alignment_label, job_relevant_skills, missing_jd_skills.
+    """
+    json_file = Path("data/output") / f"{candidate_id}.json"
+    if not json_file.exists():
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    with open(json_file, encoding="utf-8") as f:
+        data = json.load(f)
+
+    try:
+        from src.models.cv_models import ExtractedCV
+        from src.analysis.skill_alignment_analyzer import SkillAlignmentAnalyzer
+
+        cv = ExtractedCV.model_validate(data)
+        return SkillAlignmentAnalyzer().analyze(cv, job_description=body.job_description)
+
+    except Exception as e:
+        logger.error(f"JD skill alignment failed for {candidate_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/candidates/{candidate_id}/emails")
+async def get_candidate_emails(candidate_id: str):
+    """Return draft emails for missing information for a given candidate."""
+    json_file = Path("data/output") / f"{candidate_id}.json"
+    if not json_file.exists():
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    with open(json_file, encoding="utf-8") as f:
+        data = json.load(f)
+
+    try:
+        from src.models.cv_models import ExtractedCV
+        from src.analysis.missing_info_detector import MissingInfoDetector
+
+        cv = ExtractedCV.model_validate(data)
+        detector = MissingInfoDetector()
+        missing_info = detector.detect(cv)
+        draft_emails = detector.get_email_template(
+            missing_info,
+            name=cv.personal_info.full_name,
+        ) if missing_info.get("has_missing_info") else {}
+
+        return {
+            "candidate_id":         candidate_id,
+            "has_missing_info":     missing_info.get("has_missing_info", False),
+            "total_missing_fields": missing_info.get("total_missing_fields", 0),
+            "draft_emails":         draft_emails,
+            "all_missing":          missing_info.get("all_missing", []),
+        }
+
+    except Exception as e:
+        logger.error(f"Email generation failed for {candidate_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/upload-and-process")

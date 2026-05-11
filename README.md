@@ -1,182 +1,214 @@
-# TALASH - Smart HR Recruitment System
+# TALASH — AI-Powered CV Screening & Analysis System
 
 **Talent Acquisition & Learning Automation for Smart Hiring**
 
-An AI-powered recruitment support system built using Large Language Models (LLMs) for CS 417 - Large Language Models course.
+An LLM-powered recruitment support system for university faculty hiring, built for the Large Language Models course at NUST SEECS.
+
+---
 
 ## Features
 
-- PDF CV parsing and text extraction
-- LLM-based structured information extraction using Google Gemini
-- Relational database-like output format (CSV/Excel)
-- Educational profile analysis (degree progression, grade stats, foreign education detection)
-- Professional experience analysis (tenure, career trajectory, seniority tracking)
-- Research profile analysis (publication metrics, quartile distribution, research impact score)
-- Missing information detection with automated email draft generation
-- Candidate summary generation (stats + narrative)
-- Per-candidate and aggregate visualisation charts
-- REST API for programmatic access
-- Batch processing of multiple CVs
+- PDF ingestion and text extraction (PyMuPDF)
+- Structured CV extraction via Google Gemini 2.5 Flash with Pydantic v2 validation
+- Educational profile analysis — degree standardisation, QS rankings, CGPA normalisation, gap detection
+- Professional experience analysis — career trajectory, seniority scoring, overlap/gap detection
+- Research profile analysis — Research Impact Score, quartile distribution, publication trends
+- Publication verification — offline ISSN/conference databases + live fallback (WoS, CORE)
+- Topic variability analysis — Shannon entropy over 9 research theme clusters
+- Co-author network analysis — collaboration frequency, team size, national vs. international
+- Skill alignment analysis — evidence classification (strongly/partially/weakly/unsupported)
+- Candidate ranking — composite score (education 25%, research 40%, experience 25%, skills 10%)
+- Missing information detection with template and LLM-generated email drafting
+- Candidate summary — statistical profile + on-demand Gemini narrative
+- Per-candidate and aggregate PNG charts (12 chart types)
+- Analysis Excel export (6 sheets)
+- React 18 SPA with 10 pages, backed by FastAPI (19 endpoints)
+
+---
 
 ## Project Structure
 
 ```
 TALASH/
 ├── src/
-│   ├── api/              # FastAPI endpoints
-│   ├── analysis/         # Analysis modules
-│   │   ├── educational_analyzer.py
-│   │   ├── experience_analyzer.py
-│   │   ├── research_profile_analyzer.py
-│   │   ├── missing_info_detector.py
-│   │   └── candidate_summarizer.py
-│   ├── extraction/       # LLM extraction logic
-│   ├── models/           # Pydantic data models
-│   ├── preprocessing/    # PDF parsing & text cleaning
-│   ├── utils/            # Config, export utilities
-│   ├── visualization/    # Chart generation
-│   │   └── chart_generator.py
-│   └── pipeline.py       # Main processing pipeline
+│   ├── api/
+│   │   └── main.py                      # FastAPI app — 19 endpoints
+│   ├── analysis/
+│   │   ├── educational_analyzer.py      # Degree analysis, QS rankings, CGPA normalisation
+│   │   ├── experience_analyzer.py       # Career trajectory, seniority, gap detection
+│   │   ├── research_profile_analyzer.py # Impact score, quartile distribution, publication trends
+│   │   ├── publication_verifier.py      # Offline + live journal/conference verification
+│   │   ├── topic_variability_analyzer.py# Shannon entropy topic diversity
+│   │   ├── coauthor_analyzer.py         # Collaboration network analysis
+│   │   ├── skill_alignment_analyzer.py  # Evidence-based skill verification
+│   │   ├── candidate_ranker.py          # Composite score ranking
+│   │   ├── missing_info_detector.py     # Missing field detection + email drafting
+│   │   └── candidate_summarizer.py      # Stats summary + LLM narrative
+│   ├── extraction/                      # Gemini extraction logic
+│   ├── models/                          # Pydantic v2 CV schema
+│   ├── preprocessing/                   # PDF parsing & text cleaning
+│   ├── utils/                           # Config, export utilities
+│   ├── visualization/
+│   │   └── chart_generator.py           # Matplotlib/Seaborn chart generation
+│   └── pipeline.py                      # Main processing pipeline
+├── src/ui/react/                        # React 18 SPA (10 pages)
 ├── data/
-│   ├── input_cvs/        # Place CVs here for processing
-│   ├── output/           # Extracted data (Excel, CSV, JSON)
-│   │   ├── talash_all_candidates.xlsx   # Raw extraction (relational sheets)
-│   │   └── talash_analysis.xlsx         # Analysis results sheets
-│   ├── charts/           # Generated charts
-│   │   ├── {CandidateName}/             # Per-candidate charts subfolder
-│   │   └── aggregate/                   # Aggregate charts subfolder
-│   └── emails/           # Auto-generated email drafts
-│       └── {CandidateName}/             # Per-candidate email .txt files
-├── tests/                # Unit tests
-├── requirements.txt      # Python dependencies
-├── run.py                # Main entry point
-├── .env.example          # Environment template
-└── README.md
+│   ├── input_cvs/                       # Place CVs here for batch processing
+│   ├── output/                          # Extracted JSON, CSV, Excel
+│   ├── charts/                          # PNG charts (per-candidate + aggregate/)
+│   └── emails/                          # Auto-generated email drafts
+├── tests/
+├── requirements.txt
+├── run.py
+└── .env.example
 ```
+
+---
 
 ## Quick Start
 
-### 1. Installation
+### 1. Backend setup
 
 ```bash
-# Clone the repository
-cd Talash
+git clone https://github.com/aanawabi/TALASH
+cd TALASH
 
-# Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# On Windows:
+# Windows:
 venv\Scripts\activate
-# On Linux/Mac:
+# Linux/Mac:
 source venv/bin/activate
 
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Configuration
+### 2. Configure
 
 ```bash
-# Copy environment template
 copy .env.example .env
-
-# Edit .env and add your Gemini API key
-# Get your key from: https://makersuite.google.com/app/apikey
+# Add your Gemini API key to .env:
+# GEMINI_API_KEY=your_key_here
 ```
 
-### 3. Usage
+Get a key at: https://makersuite.google.com/app/apikey
 
-#### Process a Single CV
-
-```bash
-python run.py single path/to/cv.pdf
-```
-
-#### Process Multiple CVs
-
-```bash
-# Place CVs in data/input_cvs/ folder
-python run.py process -i data/input_cvs -f excel
-```
-
-#### Start API Server
+### 3. Run the backend
 
 ```bash
 python run.py api
-
-# API will be available at http://localhost:8000
+# API at http://localhost:8000
 # Swagger docs at http://localhost:8000/docs
 ```
 
+### 4. Run the React frontend
+
+```bash
+cd src/ui/react
+npm install
+npm start
+# UI at http://localhost:3000
+```
+
+### 5. Process CVs from CLI
+
+```bash
+# Single CV
+python run.py single path/to/cv.pdf
+
+# Batch folder
+python run.py process -i data/input_cvs -f excel
+```
+
+---
+
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Health check |
-| `/upload` | POST | Upload single CV |
-| `/process/{file_id}` | POST | Process uploaded CV |
-| `/process-folder` | POST | Process all CVs in folder |
-| `/list-cvs` | GET | List input CVs |
-| `/outputs` | GET | List output files |
-| `/download/{filename}` | GET | Download output file |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/upload-and-process` | Upload PDF and run full pipeline in one call |
+| POST | `/upload` | Upload PDF only, returns `file_id` |
+| POST | `/process/{file_id}` | Run extraction + analysis on uploaded file |
+| POST | `/process-folder` | Batch process all PDFs in `data/input_cvs/` |
+| GET | `/candidates` | List all processed candidates |
+| GET | `/candidates/{id}` | Full extracted CV object |
+| GET | `/candidates/{id}/analyze` | Run all analysers, return full analysis dict |
+| POST | `/candidates/{id}/skill-alignment` | Skill alignment against a target job description |
+| GET | `/candidates/{id}/emails` | Missing info detection + draft email templates |
+| GET | `/candidates/{id}/charts` | List available chart filenames |
+| GET | `/candidates/rank` | Rank all candidates by composite score |
+| GET | `/download/{filename}` | Download generated file |
 
-## Output Format
+---
 
-The system generates relational tables with the following structure:
+## Web Interface (React)
 
-### Tables Generated
+| Page | Description |
+|------|-------------|
+| Dashboard | Summary stats cards |
+| Upload | Drag-and-drop PDF upload |
+| Candidates | Searchable candidate table |
+| Education | Degree timeline, QS rankings, grade breakdown |
+| Experience | Career timeline, trajectory, overlap/gap warnings |
+| Research | Journals, conferences, books, patents, supervision |
+| Skills | Evidence-classified skill list |
+| Missing Info | Missing fields + draft email viewer |
+| Summary | Composite score, dimension bars, LLM narrative |
+| Ranking | Ranked composite-score table across all candidates |
+| Charts | Embedded per-candidate and aggregate charts |
 
-1. **candidates** - Personal information (primary table)
-2. **education** - Educational records
-3. **experience** - Work experience
-4. **skills** - Technical and soft skills
-5. **journal_publications** - Journal papers
-6. **conference_publications** - Conference papers
-7. **supervisions** - Student supervision records
-8. **patents** - Patent records
-9. **books** - Authored/co-authored books
-
-All tables are linked via `candidate_id` foreign key.
+---
 
 ## Technology Stack
 
-- **Python 3.12+**
-- **FastAPI** - REST API framework
-- **Google Gemini** - LLM for extraction and summarisation
-- **PyMuPDF / pdfplumber** - PDF processing
-- **Pandas / openpyxl** - Data manipulation and Excel export
-- **Pydantic** - Data validation
-- **Matplotlib / Seaborn** - Chart generation
+| Component | Technology |
+|-----------|-----------|
+| LLM | Google Gemini 2.5 Flash |
+| PDF Parsing | PyMuPDF (fitz) |
+| Data Validation | Pydantic v2 |
+| Backend | FastAPI + Uvicorn |
+| Frontend | React 18 + React Router + Recharts |
+| Static Charts | Matplotlib + Seaborn |
+| Storage | JSON + CSV flat files |
+| Export | OpenPyXL / Pandas |
 
-## Milestone 1 Deliverables
+---
 
-- [x] Pre-Processing Module (PDF parsing, text extraction)
-- [x] System Architecture Design
-- [x] LLM/NLP Pipeline Design
-- [x] Database/Storage Design
-- [x] Early Prototype with basic upload/read flow
-- [x] Folder-based CV ingestion
+## Deliverables
 
-## Milestone 2 Deliverables
+### Module 1
+- [x] PDF preprocessing (parsing, cleaning, batch ingestion)
+- [x] LLM extraction pipeline (Gemini, schema-injecting prompt, Pydantic validation)
+- [x] Relational CSV/JSON storage (9 tables linked by `candidate_id`)
+- [x] FastAPI skeleton + CLI runner
 
-- [x] CV parsing and structured extraction
-- [x] Educational profile analysis
-- [x] Professional experience analysis
-- [x] Research profile analysis (basic + higher-level metrics)
-- [x] Missing information detection
-- [x] Personalised email draft generation (template-filled .txt files per candidate)
-- [x] Candidate summary (stats + LLM narrative in single mode)
-- [x] Per-candidate charts in subfolders (education timeline, experience timeline, skills, publications, radar, overview)
-- [x] Aggregate charts in aggregate/ subfolder (education distribution, experience histogram, top skills, research impact comparison, publications comparison, quartile distribution)
-- [x] Analysis Excel export (analysis_summary, education_analysis, experience_analysis, research_analysis, missing_info, draft_emails sheets)
-- [x] Full batch pipeline: extraction → analysis → emails → per-candidate charts → aggregate charts → export
+### Module 2
+- [x] Educational profile analysis (degree standardisation, grades, gaps)
+- [x] Professional experience analysis (career trajectory, seniority, overlaps)
+- [x] Research profile analysis (impact score, quartile distribution, publication trends)
+- [x] Missing information detection + template email drafting
+- [x] Candidate summary (statistical + LLM narrative)
+- [x] 12 chart types (6 per-candidate, 6 aggregate)
+- [x] Analysis Excel export (6 sheets)
+
+### Module 3
+- [x] Publication verifier (offline ISSN/CORE dicts + live WoS/CORE fallback)
+- [x] Topic variability analyser (Shannon entropy, 9 theme clusters)
+- [x] Co-author network analyser (frequency, team size, collaboration diversity)
+- [x] Skill alignment analyser (4-level evidence classification, JD matching)
+- [x] Candidate ranker (composite score with configurable weights)
+- [x] QS World University Rankings 2024 integration
+- [x] CGPA normalisation (4.0 and 5.0 scales to percentage)
+- [x] React 18 SPA (10 pages, Recharts visualisations)
+- [x] Full FastAPI backend (19 endpoints)
+
+---
+
 ## Team
 
-Affan Basra
-Amna Akhtar Nawabi
-Fatima Ehsan Niazi
-(SEECS)
-## License
+| Member | Role |
+|--------|------|
+| Affan Ahmad Basra (476173) | Backend, analysis modules, React UI |
+| Amna Akhtar Nawabi (462939) | Frontend, co-author & topic analysers |
+| Fatima Ehsan Niazi (466093) | Pipeline, charts, skill alignment, testing |
 
-Academic Project - NUST SEECS
+NUST SEECS — Large Language Models, Spring 2026
